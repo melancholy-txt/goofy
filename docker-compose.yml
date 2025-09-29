@@ -1,0 +1,19 @@
+version: "3.8"
+
+services:
+  goofy-bot:
+    build: .
+    container_name: goofy-discord-bot
+    environment:
+      - DISCORD_TOKEN=${DISCORD_TOKEN}
+    restart: unless-stopped
+    # If you need to mount the patpat.gif file
+    volumes:
+      - ./patpat.gif:/app/patpat.gif:ro
+    # Resource limits (optional)
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 128M
