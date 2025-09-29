@@ -86,13 +86,22 @@ async def patpat(interaction: discord.Interaction, member: discord.Member):
         avatar_img = avatar_img.convert("RGBA")
         avatar_img.putalpha(mask)
         
-        # Process each frame of the GIF
+        # First, count total frames in the GIF
+        total_frames = 0
+        try:
+            while True:
+                patpat_gif.seek(total_frames)
+                total_frames += 1
+        except EOFError:
+            pass
+        
+        # Process each frame of the GIF with squishing animation
         frames = []
         durations = []
         
         try:
             frame_count = 0
-            while True:
+            while frame_count < total_frames:
                 patpat_gif.seek(frame_count)
                 
                 # Get current frame and convert to RGBA
@@ -101,12 +110,37 @@ async def patpat(interaction: discord.Interaction, member: discord.Member):
                 # Create a completely new image for each frame (this ensures clean slate)
                 combined_frame = Image.new('RGBA', (gif_width, gif_height), (0, 0, 0, 0))
                 
-                # Position avatar in the bottom center area (BASE LAYER)
-                avatar_x = (gif_width - avatar_size[0]) // 2
-                avatar_y = gif_height - avatar_size[1] - 10  # Bottom center with 10px margin
+                # Calculate squish factor based on frame position
+                # Peak squish at frame 3 out of 5 (60% through animation)
+                if total_frames > 1:
+                    progress = frame_count / (total_frames - 1)  # 0 to 1
+                    
+                    # Create squish curve: builds to peak at 60%, then returns to normal
+                    if progress <= 0.6:  # First part - increasing squish
+                        squish_factor = progress * 1.67  # 0 to 1 (at 60% progress)
+                    else:  # Second part - decreasing squish  
+                        squish_factor = (1.0 - progress) * 2.5  # 1 to 0 (from 60% to 100%)
+                    
+                    # Limit squish factor between 0 and 1
+                    squish_factor = max(0, min(1, squish_factor))
+                    
+                    # Apply squish: reduce height, keep width
+                    squish_height_reduction = squish_factor * 0.3  # Max 30% height reduction
+                    squished_height = int(avatar_size[1] * (1 - squish_height_reduction))
+                    squished_size = (avatar_size[0], squished_height)
+                    
+                    # Create squished avatar
+                    squished_avatar = avatar_img.resize(squished_size, Image.Resampling.LANCZOS)
+                else:
+                    squished_avatar = avatar_img
+                    squished_size = avatar_size
                 
-                # Paste the avatar first (base layer)
-                combined_frame.paste(avatar_img, (avatar_x, avatar_y), avatar_img)
+                # Position squished avatar in the bottom center area (BASE LAYER)
+                avatar_x = (gif_width - squished_size[0]) // 2
+                avatar_y = gif_height - squished_size[1] - 10  # Bottom center with 10px margin
+                
+                # Paste the squished avatar first (base layer)
+                combined_frame.paste(squished_avatar, (avatar_x, avatar_y), squished_avatar)
                 
                 # Paste ONLY the current patpat frame on top (TOP LAYER)
                 # This ensures only the current frame is visible, not accumulated frames
