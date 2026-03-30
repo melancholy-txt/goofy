@@ -96,7 +96,7 @@ async def patpat(interaction: discord.Interaction, member: discord.Member):
         gif_width, gif_height = patpat_gif.size
         
         # Resize avatar to be bigger (about 2/3 of gif width)
-        avatar_size = (int(gif_width * 0.5), int(gif_width * 0.5))  # Make avatar bigger
+        avatar_size = (int(gif_width * 0.65), int(gif_width * 0.65))  # Make avatar bigger
         avatar_img = avatar_img.resize(avatar_size, Image.Resampling.LANCZOS)
         
         # Create circular mask for avatar
@@ -232,20 +232,21 @@ async def plinko(interaction: discord.Interaction, member: discord.Member):
         # 3. Create the Plinko Pegs (Static Bodies)
         pegs = []
         width, height = 400, 500
-        rows, cols = 8, 9
-        spacing = 40
+        rows, cols = 6, 7
+        spacing = 50
+        peg_radius = 10
         
         for row in range(rows):
             for col in range(cols):
                 # Offset every other row for the zigzag effect
-                x_offset = 20 if row % 2 == 1 else 0
+                x_offset = spacing // 2 if row % 2 == 1 else 0
                 x = col * spacing + x_offset + 30
                 y = row * spacing + 100
                 
                 # Create static peg
                 body = pymunk.Body(body_type=pymunk.Body.STATIC)
                 body.position = (x, y)
-                shape = pymunk.Circle(body, 6) # 6px radius for pegs
+                shape = pymunk.Circle(body, peg_radius) # Larger pegs
                 shape.elasticity = 0.6         # Bounciness
                 space.add(body, shape)
                 pegs.append((x, y))
@@ -281,7 +282,7 @@ async def plinko(interaction: discord.Interaction, member: discord.Member):
             # Draw the pegs
             for px, py in pegs:
                 draw.ellipse(
-                    [px - 6, py - 6, px + 6, py + 6], 
+                    [px - peg_radius, py - peg_radius, px + peg_radius, py + peg_radius], 
                     fill=(180, 185, 190, 255)
                 )
             
