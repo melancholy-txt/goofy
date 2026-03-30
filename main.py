@@ -30,6 +30,13 @@ async def sync(ctx):
         await ctx.send(f"Successfully synced {len(synced)} slash command(s) globally!")
     except Exception as e:
         await ctx.send(f"Failed to sync commands: {e}")
+# This tells the bot to complain if someone other than the owner uses the command
+@sync.error
+async def sync_error(ctx, error):
+    if isinstance(error, commands.NotOwner):
+        await ctx.send("Error: You are not recognized as the bot owner!")
+    else:
+        await ctx.send(f"An error occurred: {error}")
 
 @bot.event
 async def on_ready():
