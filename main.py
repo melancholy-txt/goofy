@@ -231,7 +231,7 @@ async def plinko(interaction: discord.Interaction, member: discord.Member):
 
         # 3. Create the Plinko Pegs (Static Bodies)
         pegs = []
-        width, height = 400, 500
+        width, height = 400, 460
         spacing = 70
         peg_radius = 14
         
@@ -269,48 +269,62 @@ async def plinko(interaction: discord.Interaction, member: discord.Member):
         ball_shape.friction = 0.5
         space.add(ball_body, ball_shape)
 
-        # 5. Setup the Background and Meme Text (Do this ONCE to save CPU)
+        # 5. Setup the Background
         bg_frame = Image.new('RGBA', (width, height), (49, 51, 56, 255))
         bg_draw = ImageDraw.Draw(bg_frame)
         
-        # Draw the pegs onto the background
         for px, py in pegs:
             bg_draw.ellipse(
                 [px - peg_radius, py - peg_radius, px + peg_radius, py + peg_radius], 
                 fill=(180, 185, 190, 255)
             )
 
-        # --- MEME TEXT GENERATION ---
-        meme_text = f"{member.display_name.upper()} PLINKO"
-        
-        # Point to impact.ttf. Make sure the file is in the same folder as main.py!
+        # --- THE RETRO UPSCALE TRICK ---
         font = ImageFont.load_default()
-
-        # Center the text at the top of the board
+        meme_text = f"{member.display_name.lower()} plinko"
+        
+        # Get the tiny size of the original text
         try:
             bbox = bg_draw.textbbox((0, 0), meme_text, font=font)
-            text_w = bbox[2] - bbox[0]
+            tiny_w = bbox[2] - bbox[0]
+            tiny_h = bbox[3] - bbox[1]
         except AttributeError:
-            text_w, _ = bg_draw.textsize(meme_text, font=font) 
+            tiny_w, tiny_h = bg_draw.textsize(meme_text, font=font) 
             
-        text_x = (width - text_w) // 2
-        text_y = 10  # Hovering right above the first row of pegs
-
-        # Draw a thick black outline for the text (Meme style)
+        # 1. Create a tiny transparent image just barely big enough for the text
+        # (Added a few pixels of padding for the outline)
+        text_canvas = Image.new('RGBA', (tiny_w + 4, tiny_h + 4), (0, 0, 0, 0))
+        text_draw = ImageDraw.Draw(text_canvas)
+        
+        # 2. Draw the text with a 1px outline on the tiny canvas
         outline_color = (0, 0, 0, 255)
-        stroke_width = 3
-        for adj_x in range(-stroke_width, stroke_width + 1):
-            for adj_y in range(-stroke_width, stroke_width + 1):
-                bg_draw.text((text_x + adj_x, text_y + adj_y), meme_text, font=font, fill=outline_color)
-                
-        # Draw the main text in "Fire" Orange
-        bg_draw.text((text_x, text_y), meme_text, font=font, fill=(255, 153, 0, 255))
+        for adj_x in [-1, 0, 1]:
+            for adj_y in [-1, 0, 1]:
+                text_draw.text((2 + adj_x, 2 + adj_y), meme_text, font=font, fill=outline_color)
+        text_draw.text((2, 2), meme_text, font=font, fill=(255, 153, 0, 255))
+        
+        # 3. Magnify the tiny canvas! 
+        # Scale multiplier: 3 means 300% bigger. 
+        # Using NEAREST keeps the pixels sharp and blocky instead of making them blurry.
+        scale_multiplier = 4
+        big_text_w = (tiny_w + 4) * scale_multiplier
+        big_text_h = (tiny_h + 4) * scale_multiplier
+        
+        massive_retro_text = text_canvas.resize(
+            (big_text_w, big_text_h), 
+            resample=Image.Resampling.NEAREST
+        )
+        
+        # 4. Paste the massive retro text onto the main background
+        paste_x = (width - big_text_w) // 2
+        paste_y = 15
+        bg_frame.paste(massive_retro_text, (paste_x, paste_y), mask=massive_retro_text)
 
         # 6. Run the Simulation and Record Frames
         frames = []
         fps = 30
         dt = 1.0 / fps
-        total_frames = 120  # 4 seconds of animation
+        total_frames = 180  # 6 seconds of animation
         
         for _ in range(total_frames):
             # Step the physics engine forward
