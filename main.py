@@ -232,7 +232,7 @@ async def plinko(interaction: discord.Interaction, member: discord.Member):
         # 3. Create the Plinko Pegs (Static Bodies)
         pegs = []
         width, height = 400, 500
-        rows, cols = 6, 7
+        rows, cols = 5, 5
         spacing = 50
         peg_radius = 10
         
@@ -257,7 +257,7 @@ async def plinko(interaction: discord.Interaction, member: discord.Member):
         ball_body = pymunk.Body(mass, inertia)
         
         # Drop from the top middle, with a tiny random horizontal offset so it's different every time
-        start_x = (width // 2) + random.uniform(-10, 10)
+        start_x = (width // 2) + random.uniform(-20, 20)
         ball_body.position = (start_x, -20)
         
         ball_shape = pymunk.Circle(ball_body, ball_radius)
