@@ -283,10 +283,10 @@ async def plinko(interaction: discord.Interaction, member: discord.Member):
         try:
             # Impact is the classic meme font. Windows/Mac usually have it.
             # If you are on Linux/Docker, you might need to supply your own .ttf file.
-            font = ImageFont.truetype("impact.ttf", 45)
+            font = ImageFont.truetype("impact.ttf", 150)
         except IOError:
             try:
-                font = ImageFont.truetype("arialbd.ttf", 40) # Arial Bold
+                font = ImageFont.truetype("arialbd.ttf", 150) # Arial Bold
             except IOError:
                 font = ImageFont.load_default()
 
@@ -304,7 +304,7 @@ async def plinko(interaction: discord.Interaction, member: discord.Member):
 
         # Draw a thick black outline for the text (Meme style)
         outline_color = (0, 0, 0, 255)
-        stroke_width = 3
+        stroke_width = 2
         for adj_x in range(-stroke_width, stroke_width + 1):
             for adj_y in range(-stroke_width, stroke_width + 1):
                 bg_draw.text((text_x + adj_x, text_y + adj_y), meme_text, font=font, fill=outline_color)
