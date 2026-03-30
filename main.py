@@ -205,7 +205,6 @@ async def patpat(interaction: discord.Interaction, member: discord.Member):
 
 @bot.tree.command(name="plinko", description="Drop someone's avatar down a Plinko board!")
 async def plinko(interaction: discord.Interaction, member: discord.Member):
-    # Defer the response because physics simulation and GIF generation take time
     await interaction.response.defer()
     
     try:
@@ -214,12 +213,10 @@ async def plinko(interaction: discord.Interaction, member: discord.Member):
         response = requests.get(avatar_url)
         avatar_img = Image.open(io.BytesIO(response.content)).convert("RGBA")
         
-        # Resize to match our physics ball radius (Radius 20 = 40x40 image)
         ball_radius = 20
         img_size = (ball_radius * 2, ball_radius * 2)
         avatar_img = avatar_img.resize(img_size, Image.Resampling.LANCZOS)
         
-        # Create a circular mask so the avatar is a perfect circle
         mask = Image.new('L', img_size, 0)
         draw = ImageDraw.Draw(mask)
         draw.ellipse((0, 0) + img_size, fill=255)
@@ -227,19 +224,18 @@ async def plinko(interaction: discord.Interaction, member: discord.Member):
 
         # 2. Setup the Physics Space
         space = pymunk.Space()
-        space.gravity = (0, 900)  # Gravity pointing straight down
+        space.gravity = (0, 900)
 
-        # 3. Create the Plinko Pegs (Static Bodies)
+        # 3. Create the Plinko Pegs
         pegs = []
-        width, height = 400, 460
+        width = 400
+        height = 460
         spacing = 70
         peg_radius = 14
         
-        # We want 5 rows, alternating between 5 and 4 pegs
         row_counts = [5, 4, 5, 4, 5]
         
         for row, count in enumerate(row_counts):
-            # Calculate where the first peg should start to keep the row perfectly centered
             total_row_width = (count - 1) * spacing
             start_x = (width / 2) - (total_row_width / 2)
             
@@ -247,25 +243,23 @@ async def plinko(interaction: discord.Interaction, member: discord.Member):
                 x = start_x + (col * spacing)
                 y = row * spacing + 100
                 
-                # Create static peg
                 body = pymunk.Body(body_type=pymunk.Body.STATIC)
                 body.position = (x, y)
-                shape = pymunk.Circle(body, peg_radius) # Larger pegs
-                shape.elasticity = 0.6         # Bounciness
+                shape = pymunk.Circle(body, peg_radius)
+                shape.elasticity = 0.6
                 space.add(body, shape)
                 pegs.append((x, y))
 
-        # 4. Create the Falling Avatar (Dynamic Body)
+        # 4. Create the Falling Avatar
         mass = 1
         inertia = pymunk.moment_for_circle(mass, 0, ball_radius, (0, 0))
         ball_body = pymunk.Body(mass, inertia)
         
-        # Drop from the top middle (right above the center peg of the top row)
         start_x = (width // 2) + random.uniform(-20, 20)
         ball_body.position = (start_x, -20)
         
         ball_shape = pymunk.Circle(ball_body, ball_radius)
-        ball_shape.elasticity = 0.8  # Extra bouncy!
+        ball_shape.elasticity = 0.8
         ball_shape.friction = 0.5
         space.add(ball_body, ball_shape)
 
@@ -279,23 +273,11 @@ async def plinko(interaction: discord.Interaction, member: discord.Member):
                 fill=(180, 185, 190, 255)
             )
 
-        # --- LOAD THE FIRE GIF ---
-        fire_frames = []
-        try:
-            fire_gif = Image.open("fire.gif")
-            while True:
-                # Resize the fire to stretch across the top area
-                frame = fire_gif.copy().convert("RGBA").resize((350, 100))
-                fire_frames.append(frame)
-                fire_gif.seek(len(fire_frames))
-        except Exception as e:
-            print(f"Could not load fire.gif: {e}")
-            # Fallback blank frame if the file is missing so the bot doesn't crash
-            fire_frames = [Image.new('RGBA', (350, 100), (0,0,0,0))]
-
         # --- THE RETRO UPSCALE TEXT TRICK ---
         font = ImageFont.load_default()
-        meme_text = f"{member.display_name.upper()} PLINKO"
+        
+        # CHANGED: Force the text to be entirely lowercase
+        meme_text = f"{member.display_name.lower()} plinko"
         
         try:
             bbox = bg_draw.textbbox((0, 0), meme_text, font=font)
@@ -312,8 +294,8 @@ async def plinko(interaction: discord.Interaction, member: discord.Member):
             for adj_y in [-1, 0, 1]:
                 text_draw.text((2 + adj_x, 2 + adj_y), meme_text, font=font, fill=outline_color)
                 
-        # Fill with Yellow/Orange to match the fire!
-        text_draw.text((2, 2), meme_text, font=font, fill=(255, 200, 0, 255))
+        # CHANGED: Fill text with pure red
+        text_draw.text((2, 2), meme_text, font=font, fill=(255, 0, 0, 255))
         
         scale_multiplier = 4
         big_text_w = (tiny_w + 4) * scale_multiplier
@@ -325,7 +307,7 @@ async def plinko(interaction: discord.Interaction, member: discord.Member):
         )
         
         text_paste_x = (width - big_text_w) // 2
-        text_paste_y = 25 # Moved down slightly so the fire peeks over the top
+        text_paste_y = 25 
 
         # 6. Run the Simulation and Record Frames
         frames = []
@@ -333,20 +315,33 @@ async def plinko(interaction: discord.Interaction, member: discord.Member):
         dt = 1.0 / fps
         total_frames = 180  
         
-        for i in range(total_frames):
+        for _ in range(total_frames):
             space.step(dt)
             frame = bg_frame.copy()
             
-            # 1. LAYER ONE: The Fire (Loops based on the current frame index)
-            current_fire = fire_frames[i % len(fire_frames)]
-            fire_x = (width - 350) // 2
-            fire_y = 0
-            frame.paste(current_fire, (fire_x, fire_y), mask=current_fire)
+            # --- LAYER ONE: PROCEDURAL PIXEL FIRE ---
+            # Generate random flickering squares behind the text every single frame
+            fire_canvas = Image.new('RGBA', (width, height), (0, 0, 0, 0))
+            f_draw = ImageDraw.Draw(fire_canvas)
+            
+            for _ in range(50): # Number of fire particles
+                # Concentrate flames around the text area
+                fx = random.randint(text_paste_x - 10, text_paste_x + big_text_w + 10)
+                fy = random.randint(text_paste_y + big_text_h - 15, text_paste_y + big_text_h + 20)
+                f_size = random.randint(6, 16)
+                
+                # Pick a random fire color (Red, Orange, or Dark Yellow)
+                f_color = random.choice([(255, 0, 0, 200), (255, 100, 0, 200), (255, 150, 0, 150)])
+                
+                # Draw a blocky retro flame
+                f_draw.rectangle([fx, fy - f_size, fx + f_size, fy], fill=f_color)
+                
+            frame.paste(fire_canvas, (0, 0), mask=fire_canvas)
 
-            # 2. LAYER TWO: The Text (Pasted ON TOP of the fire)
+            # --- LAYER TWO: The Text ---
             frame.paste(massive_retro_text, (text_paste_x, text_paste_y), mask=massive_retro_text)
             
-            # 3. LAYER THREE: The Avatar Ball
+            # --- LAYER THREE: The Avatar Ball ---
             bx, by = int(ball_body.position.x), int(ball_body.position.y)
             paste_x = bx - ball_radius
             paste_y = by - ball_radius
@@ -372,7 +367,7 @@ async def plinko(interaction: discord.Interaction, member: discord.Member):
         output.seek(0)
         
         file = discord.File(output, filename="plinko.gif")
-        await interaction.followup.send(content=f"**{member.display_name}** went down the Plinko board!", file=file)
+        await interaction.followup.send(file=file)
         
     except Exception as e:
         await interaction.followup.send(f"Sorry, couldn't create the Plinko simulation: {str(e)}")
