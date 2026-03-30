@@ -241,7 +241,7 @@ async def plinko(interaction: discord.Interaction, member: discord.Member):
             
             for col in range(count):
                 x = start_x + (col * spacing)
-                # CHANGED: Shifted all pegs down by 50 pixels (from 100 to 150)
+                # Shifted all pegs down by 50 pixels to leave room for text
                 y = row * spacing + 150 
                 
                 body = pymunk.Body(body_type=pymunk.Body.STATIC)
@@ -257,7 +257,7 @@ async def plinko(interaction: discord.Interaction, member: discord.Member):
         ball_body = pymunk.Body(mass, inertia)
         
         start_x = (width // 2) + random.uniform(-20, 20)
-        # CHANGED: Shifted the ball's start position down by 50 pixels (from -20 to 30)
+        # Shifted the ball's start position down by 50 pixels
         ball_body.position = (start_x, 30) 
         
         ball_shape = pymunk.Circle(ball_body, ball_radius)
@@ -294,6 +294,7 @@ async def plinko(interaction: discord.Interaction, member: discord.Member):
             for adj_y in [-1, 0, 1]:
                 text_draw.text((2 + adj_x, 2 + adj_y), meme_text, font=font, fill=outline_color)
                 
+        # Pure Red Text
         text_draw.text((2, 2), meme_text, font=font, fill=(255, 0, 0, 255))
         
         scale_multiplier = 4
@@ -317,32 +318,11 @@ async def plinko(interaction: discord.Interaction, member: discord.Member):
         for _ in range(total_frames):
             space.step(dt)
             frame = bg_frame.copy()
-            
-            # --- LAYER ONE: HIGHER PROCEDURAL PIXEL FIRE ---
-            fire_canvas = Image.new('RGBA', (width, height), (0, 0, 0, 0))
-            f_draw = ImageDraw.Draw(fire_canvas)
-            
-            # Increased particle count slightly for the taller flames
-            for _ in range(60): 
-                fx = random.randint(text_paste_x - 10, text_paste_x + big_text_w + 10)
-                # CHANGED: Start flames higher up behind the text
-                fy = random.randint(text_paste_y + 10, text_paste_y + big_text_h + 15)
-                
-                # CHANGED: Make the flames much taller vertically 
-                f_height = random.randint(15, 45) 
-                f_width = random.randint(4, 10)
-                
-                f_color = random.choice([(255, 0, 0, 200), (255, 100, 0, 200), (255, 150, 0, 150)])
-                
-                # Draw vertical rectangles to simulate tall fire
-                f_draw.rectangle([fx, fy - f_height, fx + f_width, fy], fill=f_color)
-                
-            frame.paste(fire_canvas, (0, 0), mask=fire_canvas)
 
-            # --- LAYER TWO: The Text ---
+            # --- LAYER ONE: The Text ---
             frame.paste(massive_retro_text, (text_paste_x, text_paste_y), mask=massive_retro_text)
             
-            # --- LAYER THREE: The Avatar Ball ---
+            # --- LAYER TWO: The Avatar Ball ---
             bx, by = int(ball_body.position.x), int(ball_body.position.y)
             paste_x = bx - ball_radius
             paste_y = by - ball_radius
@@ -368,7 +348,7 @@ async def plinko(interaction: discord.Interaction, member: discord.Member):
         output.seek(0)
         
         file = discord.File(output, filename="plinko.gif")
-        await interaction.followup.send(content=f"**{member.display_name}** went down the Plinko board!", file=file)
+        await interaction.followup.send(file=file)
         
     except Exception as e:
         await interaction.followup.send(f"Sorry, couldn't create the Plinko simulation: {str(e)}")
