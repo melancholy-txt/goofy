@@ -232,15 +232,19 @@ async def plinko(interaction: discord.Interaction, member: discord.Member):
         # 3. Create the Plinko Pegs (Static Bodies)
         pegs = []
         width, height = 400, 500
-        rows, cols = 5, 5
         spacing = 70
-        peg_radius = 18
+        peg_radius = 14
         
-        for row in range(rows):
-            for col in range(cols):
-                # Offset every other row for the zigzag effect
-                x_offset = spacing // 2 if row % 2 == 1 else 0
-                x = col * spacing + x_offset + 30
+        # We want 5 rows, alternating between 5 and 4 pegs
+        row_counts = [5, 4, 5, 4, 5]
+        
+        for row, count in enumerate(row_counts):
+            # Calculate where the first peg should start to keep the row perfectly centered
+            total_row_width = (count - 1) * spacing
+            start_x = (width / 2) - (total_row_width / 2)
+            
+            for col in range(count):
+                x = start_x + (col * spacing)
                 y = row * spacing + 100
                 
                 # Create static peg
@@ -256,7 +260,7 @@ async def plinko(interaction: discord.Interaction, member: discord.Member):
         inertia = pymunk.moment_for_circle(mass, 0, ball_radius, (0, 0))
         ball_body = pymunk.Body(mass, inertia)
         
-        # Drop from the top middle, with a tiny random horizontal offset so it's different every time
+        # Drop from the top middle (right above the center peg of the top row)
         start_x = (width // 2) + random.uniform(-20, 20)
         ball_body.position = (start_x, -20)
         
@@ -272,46 +276,35 @@ async def plinko(interaction: discord.Interaction, member: discord.Member):
         # Draw the pegs onto the background
         for px, py in pegs:
             bg_draw.ellipse(
-                [px - 6, py - 6, px + 6, py + 6], 
+                [px - peg_radius, py - peg_radius, px + peg_radius, py + peg_radius], 
                 fill=(180, 185, 190, 255)
             )
 
         # --- MEME TEXT GENERATION ---
-        meme_text = f"{member.display_name.lower()} plinko"
+        meme_text = f"{member.display_name.upper()} PLINKO"
         
-        # Try to load a heavy meme font. Falls back to default if not found.
-        try:
-            # Impact is the classic meme font. Windows/Mac usually have it.
-            # If you are on Linux/Docker, you might need to supply your own .ttf file.
-            font = ImageFont.truetype("impact.ttf", 150)
-        except IOError:
-            try:
-                font = ImageFont.truetype("arialbd.ttf", 150) # Arial Bold
-            except IOError:
-                font = ImageFont.load_default()
+        # Point to impact.ttf. Make sure the file is in the same folder as main.py!
+        font = ImageFont.truetype("impact.ttf", 60)
 
         # Center the text at the top of the board
-        # Get text dimensions using the modern Pillow method
         try:
             bbox = bg_draw.textbbox((0, 0), meme_text, font=font)
             text_w = bbox[2] - bbox[0]
         except AttributeError:
-            # Fallback for older Pillow versions
             text_w, _ = bg_draw.textsize(meme_text, font=font) 
             
         text_x = (width - text_w) // 2
-        text_y = 20  # Hovering right above the pegs
+        text_y = 10  # Hovering right above the first row of pegs
 
         # Draw a thick black outline for the text (Meme style)
         outline_color = (0, 0, 0, 255)
-        stroke_width = 2
+        stroke_width = 3
         for adj_x in range(-stroke_width, stroke_width + 1):
             for adj_y in range(-stroke_width, stroke_width + 1):
                 bg_draw.text((text_x + adj_x, text_y + adj_y), meme_text, font=font, fill=outline_color)
                 
-        # Draw the main text in "Fire" Orange/Yellow
+        # Draw the main text in "Fire" Orange
         bg_draw.text((text_x, text_y), meme_text, font=font, fill=(255, 153, 0, 255))
-
 
         # 6. Run the Simulation and Record Frames
         frames = []
@@ -331,6 +324,7 @@ async def plinko(interaction: discord.Interaction, member: discord.Member):
             paste_x = bx - ball_radius
             paste_y = by - ball_radius
             
+            # Only draw if the ball is within the frame bounds to prevent errors
             if -50 < paste_y < height + 50: 
                 angle_deg = math.degrees(-ball_body.angle)
                 rotated_avatar = avatar_img.rotate(angle_deg, resample=Image.Resampling.BICUBIC)
@@ -338,7 +332,7 @@ async def plinko(interaction: discord.Interaction, member: discord.Member):
                 
             frames.append(frame)
 
-        # 6. Save and Send the GIF
+        # 7. Save and Send the GIF
         output = io.BytesIO()
         frames[0].save(
             output,
