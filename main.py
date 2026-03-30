@@ -265,7 +265,55 @@ async def plinko(interaction: discord.Interaction, member: discord.Member):
         ball_shape.friction = 0.5
         space.add(ball_body, ball_shape)
 
-        # 5. Run the Simulation and Record Frames
+        # 5. Setup the Background and Meme Text (Do this ONCE to save CPU)
+        bg_frame = Image.new('RGBA', (width, height), (49, 51, 56, 255))
+        bg_draw = ImageDraw.Draw(bg_frame)
+        
+        # Draw the pegs onto the background
+        for px, py in pegs:
+            bg_draw.ellipse(
+                [px - 6, py - 6, px + 6, py + 6], 
+                fill=(180, 185, 190, 255)
+            )
+
+        # --- MEME TEXT GENERATION ---
+        meme_text = f"{member.display_name.lower()} plinko"
+        
+        # Try to load a heavy meme font. Falls back to default if not found.
+        try:
+            # Impact is the classic meme font. Windows/Mac usually have it.
+            # If you are on Linux/Docker, you might need to supply your own .ttf file.
+            font = ImageFont.truetype("impact.ttf", 45)
+        except IOError:
+            try:
+                font = ImageFont.truetype("arialbd.ttf", 40) # Arial Bold
+            except IOError:
+                font = ImageFont.load_default()
+
+        # Center the text at the top of the board
+        # Get text dimensions using the modern Pillow method
+        try:
+            bbox = bg_draw.textbbox((0, 0), meme_text, font=font)
+            text_w = bbox[2] - bbox[0]
+        except AttributeError:
+            # Fallback for older Pillow versions
+            text_w, _ = bg_draw.textsize(meme_text, font=font) 
+            
+        text_x = (width - text_w) // 2
+        text_y = 20  # Hovering right above the pegs
+
+        # Draw a thick black outline for the text (Meme style)
+        outline_color = (0, 0, 0, 255)
+        stroke_width = 3
+        for adj_x in range(-stroke_width, stroke_width + 1):
+            for adj_y in range(-stroke_width, stroke_width + 1):
+                bg_draw.text((text_x + adj_x, text_y + adj_y), meme_text, font=font, fill=outline_color)
+                
+        # Draw the main text in "Fire" Orange/Yellow
+        bg_draw.text((text_x, text_y), meme_text, font=font, fill=(255, 153, 0, 255))
+
+
+        # 6. Run the Simulation and Record Frames
         frames = []
         fps = 30
         dt = 1.0 / fps
@@ -275,30 +323,17 @@ async def plinko(interaction: discord.Interaction, member: discord.Member):
             # Step the physics engine forward
             space.step(dt)
             
-            # Create a blank frame (Discord dark theme background color)
-            frame = Image.new('RGBA', (width, height), (49, 51, 56, 255))
-            draw = ImageDraw.Draw(frame)
-            
-            # Draw the pegs
-            for px, py in pegs:
-                draw.ellipse(
-                    [px - peg_radius, py - peg_radius, px + peg_radius, py + peg_radius], 
-                    fill=(180, 185, 190, 255)
-                )
+            # COPY the pre-drawn background (This is much faster!)
+            frame = bg_frame.copy()
             
             # Draw the avatar
             bx, by = int(ball_body.position.x), int(ball_body.position.y)
-            # Paste the avatar centered on the physics body's coordinates
             paste_x = bx - ball_radius
             paste_y = by - ball_radius
             
-            # Only draw if the ball is within the frame bounds to prevent errors
             if -50 < paste_y < height + 50: 
-                # Optional: Rotate the avatar based on physics rotation
                 angle_deg = math.degrees(-ball_body.angle)
                 rotated_avatar = avatar_img.rotate(angle_deg, resample=Image.Resampling.BICUBIC)
-                
-                # Paste using itself as a mask to preserve transparency
                 frame.paste(rotated_avatar, (paste_x, paste_y), mask=rotated_avatar)
                 
             frames.append(frame)
