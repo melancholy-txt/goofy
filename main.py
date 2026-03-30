@@ -279,11 +279,24 @@ async def plinko(interaction: discord.Interaction, member: discord.Member):
                 fill=(180, 185, 190, 255)
             )
 
-        # --- THE RETRO UPSCALE TRICK ---
+        # --- LOAD THE FIRE GIF ---
+        fire_frames = []
+        try:
+            fire_gif = Image.open("fire.gif")
+            while True:
+                # Resize the fire to stretch across the top area
+                frame = fire_gif.copy().convert("RGBA").resize((350, 100))
+                fire_frames.append(frame)
+                fire_gif.seek(len(fire_frames))
+        except Exception as e:
+            print(f"Could not load fire.gif: {e}")
+            # Fallback blank frame if the file is missing so the bot doesn't crash
+            fire_frames = [Image.new('RGBA', (350, 100), (0,0,0,0))]
+
+        # --- THE RETRO UPSCALE TEXT TRICK ---
         font = ImageFont.load_default()
-        meme_text = f"{member.display_name.lower()} plinko"
+        meme_text = f"{member.display_name.upper()} PLINKO"
         
-        # Get the tiny size of the original text
         try:
             bbox = bg_draw.textbbox((0, 0), meme_text, font=font)
             tiny_w = bbox[2] - bbox[0]
@@ -291,21 +304,17 @@ async def plinko(interaction: discord.Interaction, member: discord.Member):
         except AttributeError:
             tiny_w, tiny_h = bg_draw.textsize(meme_text, font=font) 
             
-        # 1. Create a tiny transparent image just barely big enough for the text
-        # (Added a few pixels of padding for the outline)
         text_canvas = Image.new('RGBA', (tiny_w + 4, tiny_h + 4), (0, 0, 0, 0))
         text_draw = ImageDraw.Draw(text_canvas)
         
-        # 2. Draw the text with a 1px outline on the tiny canvas
         outline_color = (0, 0, 0, 255)
         for adj_x in [-1, 0, 1]:
             for adj_y in [-1, 0, 1]:
                 text_draw.text((2 + adj_x, 2 + adj_y), meme_text, font=font, fill=outline_color)
-        text_draw.text((2, 2), meme_text, font=font, fill=(255, 0, 0, 255))
+                
+        # Fill with Yellow/Orange to match the fire!
+        text_draw.text((2, 2), meme_text, font=font, fill=(255, 200, 0, 255))
         
-        # 3. Magnify the tiny canvas! 
-        # Scale multiplier: 3 means 300% bigger. 
-        # Using NEAREST keeps the pixels sharp and blocky instead of making them blurry.
         scale_multiplier = 4
         big_text_w = (tiny_w + 4) * scale_multiplier
         big_text_h = (tiny_h + 4) * scale_multiplier
@@ -315,30 +324,33 @@ async def plinko(interaction: discord.Interaction, member: discord.Member):
             resample=Image.Resampling.NEAREST
         )
         
-        # 4. Paste the massive retro text onto the main background
-        paste_x = (width - big_text_w) // 2
-        paste_y = 15
-        bg_frame.paste(massive_retro_text, (paste_x, paste_y), mask=massive_retro_text)
+        text_paste_x = (width - big_text_w) // 2
+        text_paste_y = 25 # Moved down slightly so the fire peeks over the top
 
         # 6. Run the Simulation and Record Frames
         frames = []
         fps = 30
         dt = 1.0 / fps
-        total_frames = 180  # 6 seconds of animation
+        total_frames = 180  
         
-        for _ in range(total_frames):
-            # Step the physics engine forward
+        for i in range(total_frames):
             space.step(dt)
-            
-            # COPY the pre-drawn background (This is much faster!)
             frame = bg_frame.copy()
             
-            # Draw the avatar
+            # 1. LAYER ONE: The Fire (Loops based on the current frame index)
+            current_fire = fire_frames[i % len(fire_frames)]
+            fire_x = (width - 350) // 2
+            fire_y = 0
+            frame.paste(current_fire, (fire_x, fire_y), mask=current_fire)
+
+            # 2. LAYER TWO: The Text (Pasted ON TOP of the fire)
+            frame.paste(massive_retro_text, (text_paste_x, text_paste_y), mask=massive_retro_text)
+            
+            # 3. LAYER THREE: The Avatar Ball
             bx, by = int(ball_body.position.x), int(ball_body.position.y)
             paste_x = bx - ball_radius
             paste_y = by - ball_radius
             
-            # Only draw if the ball is within the frame bounds to prevent errors
             if -50 < paste_y < height + 50: 
                 angle_deg = math.degrees(-ball_body.angle)
                 rotated_avatar = avatar_img.rotate(angle_deg, resample=Image.Resampling.BICUBIC)
@@ -353,7 +365,7 @@ async def plinko(interaction: discord.Interaction, member: discord.Member):
             format='GIF',
             save_all=True,
             append_images=frames[1:],
-            duration=int(1000/fps), # Duration per frame in ms
+            duration=int(1000/fps),
             loop=0,
             disposal=2
         )
