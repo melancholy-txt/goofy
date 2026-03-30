@@ -3,7 +3,7 @@ from discord.ext import commands
 import os
 from dotenv import load_dotenv
 import requests
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFont
 import io
 import pymunk
 import random
@@ -210,12 +210,12 @@ async def plinko(interaction: discord.Interaction, member: discord.Member):
     
     try:
         # 1. Fetch and prepare the avatar
-        avatar_url = member.display_avatar.with_size(64).url
+        avatar_url = member.display_avatar.with_size(128).url
         response = requests.get(avatar_url)
         avatar_img = Image.open(io.BytesIO(response.content)).convert("RGBA")
         
-        # Resize to match our physics ball radius (Radius 15 = 30x30 image)
-        ball_radius = 15
+        # Resize to match our physics ball radius (Radius 20 = 40x40 image)
+        ball_radius = 20
         img_size = (ball_radius * 2, ball_radius * 2)
         avatar_img = avatar_img.resize(img_size, Image.Resampling.LANCZOS)
         
@@ -234,7 +234,7 @@ async def plinko(interaction: discord.Interaction, member: discord.Member):
         width, height = 400, 500
         rows, cols = 5, 5
         spacing = 50
-        peg_radius = 10
+        peg_radius = 14
         
         for row in range(rows):
             for col in range(cols):
