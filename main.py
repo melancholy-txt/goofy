@@ -19,6 +19,18 @@ intents.message_content = True  # Prevents warning, even though we only use slas
 # Use an unusual prefix since we only use slash commands
 bot = commands.Bot(command_prefix="$#!", intents=intents)
 
+# A standard text command to manually sync slash commands
+# We use @commands.is_owner() so only YOU can run this command
+@bot.command(name="sync")
+@commands.is_owner()
+async def sync(ctx):
+    await ctx.send("Syncing commands...")
+    try:
+        synced = await bot.tree.sync()
+        await ctx.send(f"Successfully synced {len(synced)} slash command(s) globally!")
+    except Exception as e:
+        await ctx.send(f"Failed to sync commands: {e}")
+
 @bot.event
 async def on_ready():
     print(f'{bot.user} has connected to Discord!')
