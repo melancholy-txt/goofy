@@ -5,6 +5,9 @@ from dotenv import load_dotenv
 import requests
 from PIL import Image, ImageDraw
 import io
+import pymunk
+import random
+import math
 
 # Load environment variables from .env file
 load_dotenv()
@@ -180,6 +183,124 @@ async def patpat(interaction: discord.Interaction, member: discord.Member):
         
     except Exception as e:
         await interaction.followup.send(f"Sorry, couldn't create patpat image: {str(e)}")
+
+@bot.tree.command(name="plinko", description="Drop someone's avatar down a Plinko board!")
+async def plinko(interaction: discord.Interaction, member: discord.Member):
+    # Defer the response because physics simulation and GIF generation take time
+    await interaction.response.defer()
+    
+    try:
+        # 1. Fetch and prepare the avatar
+        avatar_url = member.display_avatar.with_size(64).url
+        response = requests.get(avatar_url)
+        avatar_img = Image.open(io.BytesIO(response.content)).convert("RGBA")
+        
+        # Resize to match our physics ball radius (Radius 15 = 30x30 image)
+        ball_radius = 15
+        img_size = (ball_radius * 2, ball_radius * 2)
+        avatar_img = avatar_img.resize(img_size, Image.Resampling.LANCZOS)
+        
+        # Create a circular mask so the avatar is a perfect circle
+        mask = Image.new('L', img_size, 0)
+        draw = ImageDraw.Draw(mask)
+        draw.ellipse((0, 0) + img_size, fill=255)
+        avatar_img.putalpha(mask)
+
+        # 2. Setup the Physics Space
+        space = pymunk.Space()
+        space.gravity = (0, 900)  # Gravity pointing straight down
+
+        # 3. Create the Plinko Pegs (Static Bodies)
+        pegs = []
+        width, height = 400, 500
+        rows, cols = 8, 9
+        spacing = 40
+        
+        for row in range(rows):
+            for col in range(cols):
+                # Offset every other row for the zigzag effect
+                x_offset = 20 if row % 2 == 1 else 0
+                x = col * spacing + x_offset + 30
+                y = row * spacing + 100
+                
+                # Create static peg
+                body = pymunk.Body(body_type=pymunk.Body.STATIC)
+                body.position = (x, y)
+                shape = pymunk.Circle(body, 6) # 6px radius for pegs
+                shape.elasticity = 0.6         # Bounciness
+                space.add(body, shape)
+                pegs.append((x, y))
+
+        # 4. Create the Falling Avatar (Dynamic Body)
+        mass = 1
+        inertia = pymunk.moment_for_circle(mass, 0, ball_radius, (0, 0))
+        ball_body = pymunk.Body(mass, inertia)
+        
+        # Drop from the top middle, with a tiny random horizontal offset so it's different every time
+        start_x = (width // 2) + random.uniform(-10, 10)
+        ball_body.position = (start_x, -20)
+        
+        ball_shape = pymunk.Circle(ball_body, ball_radius)
+        ball_shape.elasticity = 0.8  # Extra bouncy!
+        ball_shape.friction = 0.5
+        space.add(ball_body, ball_shape)
+
+        # 5. Run the Simulation and Record Frames
+        frames = []
+        fps = 30
+        dt = 1.0 / fps
+        total_frames = 120  # 4 seconds of animation
+        
+        for _ in range(total_frames):
+            # Step the physics engine forward
+            space.step(dt)
+            
+            # Create a blank frame (Discord dark theme background color)
+            frame = Image.new('RGBA', (width, height), (49, 51, 56, 255))
+            draw = ImageDraw.Draw(frame)
+            
+            # Draw the pegs
+            for px, py in pegs:
+                draw.ellipse(
+                    [px - 6, py - 6, px + 6, py + 6], 
+                    fill=(180, 185, 190, 255)
+                )
+            
+            # Draw the avatar
+            bx, by = int(ball_body.position.x), int(ball_body.position.y)
+            # Paste the avatar centered on the physics body's coordinates
+            paste_x = bx - ball_radius
+            paste_y = by - ball_radius
+            
+            # Only draw if the ball is within the frame bounds to prevent errors
+            if -50 < paste_y < height + 50: 
+                # Optional: Rotate the avatar based on physics rotation
+                angle_deg = math.degrees(-ball_body.angle)
+                rotated_avatar = avatar_img.rotate(angle_deg, resample=Image.Resampling.BICUBIC)
+                
+                # Paste using itself as a mask to preserve transparency
+                frame.paste(rotated_avatar, (paste_x, paste_y), mask=rotated_avatar)
+                
+            frames.append(frame)
+
+        # 6. Save and Send the GIF
+        output = io.BytesIO()
+        frames[0].save(
+            output,
+            format='GIF',
+            save_all=True,
+            append_images=frames[1:],
+            duration=int(1000/fps), # Duration per frame in ms
+            loop=0,
+            disposal=2
+        )
+        output.seek(0)
+        
+        file = discord.File(output, filename="plinko.gif")
+        await interaction.followup.send(content=f"**{member.display_name}** went down the Plinko board!", file=file)
+        
+    except Exception as e:
+        await interaction.followup.send(f"Sorry, couldn't create the Plinko simulation: {str(e)}")
 
 if __name__ == "__main__":
     token = os.getenv('DISCORD_TOKEN')
