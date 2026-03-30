@@ -215,7 +215,7 @@ async def plinko(interaction: discord.Interaction, member: discord.Member):
         avatar_img = Image.open(io.BytesIO(response.content)).convert("RGBA")
         
         # Resize to match our physics ball radius (Radius 20 = 40x40 image)
-        ball_radius = 30
+        ball_radius = 20
         img_size = (ball_radius * 2, ball_radius * 2)
         avatar_img = avatar_img.resize(img_size, Image.Resampling.LANCZOS)
         
@@ -234,7 +234,7 @@ async def plinko(interaction: discord.Interaction, member: discord.Member):
         width, height = 400, 500
         rows, cols = 5, 5
         spacing = 70
-        peg_radius = 14
+        peg_radius = 18
         
         for row in range(rows):
             for col in range(cols):
