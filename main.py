@@ -233,7 +233,7 @@ async def plinko(interaction: discord.Interaction, member: discord.Member):
         pegs = []
         width, height = 400, 500
         rows, cols = 5, 5
-        spacing = 50
+        spacing = 70
         peg_radius = 14
         
         for row in range(rows):
