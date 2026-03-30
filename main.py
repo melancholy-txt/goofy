@@ -284,7 +284,7 @@ async def plinko(interaction: discord.Interaction, member: discord.Member):
         meme_text = f"{member.display_name.upper()} PLINKO"
         
         # Point to impact.ttf. Make sure the file is in the same folder as main.py!
-        font = ImageFont.truetype("impact.ttf", 60)
+        font = ImageFont.load_default()
 
         # Center the text at the top of the board
         try:
