@@ -241,7 +241,8 @@ async def plinko(interaction: discord.Interaction, member: discord.Member):
             
             for col in range(count):
                 x = start_x + (col * spacing)
-                y = row * spacing + 100
+                # CHANGED: Shifted all pegs down by 50 pixels (from 100 to 150)
+                y = row * spacing + 150 
                 
                 body = pymunk.Body(body_type=pymunk.Body.STATIC)
                 body.position = (x, y)
@@ -256,7 +257,8 @@ async def plinko(interaction: discord.Interaction, member: discord.Member):
         ball_body = pymunk.Body(mass, inertia)
         
         start_x = (width // 2) + random.uniform(-20, 20)
-        ball_body.position = (start_x, -20)
+        # CHANGED: Shifted the ball's start position down by 50 pixels (from -20 to 30)
+        ball_body.position = (start_x, 30) 
         
         ball_shape = pymunk.Circle(ball_body, ball_radius)
         ball_shape.elasticity = 0.8
@@ -275,8 +277,6 @@ async def plinko(interaction: discord.Interaction, member: discord.Member):
 
         # --- THE RETRO UPSCALE TEXT TRICK ---
         font = ImageFont.load_default()
-        
-        # CHANGED: Force the text to be entirely lowercase
         meme_text = f"{member.display_name.lower()} plinko"
         
         try:
@@ -294,7 +294,6 @@ async def plinko(interaction: discord.Interaction, member: discord.Member):
             for adj_y in [-1, 0, 1]:
                 text_draw.text((2 + adj_x, 2 + adj_y), meme_text, font=font, fill=outline_color)
                 
-        # CHANGED: Fill text with pure red
         text_draw.text((2, 2), meme_text, font=font, fill=(255, 0, 0, 255))
         
         scale_multiplier = 4
@@ -319,22 +318,24 @@ async def plinko(interaction: discord.Interaction, member: discord.Member):
             space.step(dt)
             frame = bg_frame.copy()
             
-            # --- LAYER ONE: PROCEDURAL PIXEL FIRE ---
-            # Generate random flickering squares behind the text every single frame
+            # --- LAYER ONE: HIGHER PROCEDURAL PIXEL FIRE ---
             fire_canvas = Image.new('RGBA', (width, height), (0, 0, 0, 0))
             f_draw = ImageDraw.Draw(fire_canvas)
             
-            for _ in range(50): # Number of fire particles
-                # Concentrate flames around the text area
+            # Increased particle count slightly for the taller flames
+            for _ in range(60): 
                 fx = random.randint(text_paste_x - 10, text_paste_x + big_text_w + 10)
-                fy = random.randint(text_paste_y + big_text_h - 15, text_paste_y + big_text_h + 20)
-                f_size = random.randint(6, 16)
+                # CHANGED: Start flames higher up behind the text
+                fy = random.randint(text_paste_y + 10, text_paste_y + big_text_h + 15)
                 
-                # Pick a random fire color (Red, Orange, or Dark Yellow)
+                # CHANGED: Make the flames much taller vertically 
+                f_height = random.randint(15, 45) 
+                f_width = random.randint(4, 10)
+                
                 f_color = random.choice([(255, 0, 0, 200), (255, 100, 0, 200), (255, 150, 0, 150)])
                 
-                # Draw a blocky retro flame
-                f_draw.rectangle([fx, fy - f_size, fx + f_size, fy], fill=f_color)
+                # Draw vertical rectangles to simulate tall fire
+                f_draw.rectangle([fx, fy - f_height, fx + f_width, fy], fill=f_color)
                 
             frame.paste(fire_canvas, (0, 0), mask=fire_canvas)
 
@@ -367,7 +368,7 @@ async def plinko(interaction: discord.Interaction, member: discord.Member):
         output.seek(0)
         
         file = discord.File(output, filename="plinko.gif")
-        await interaction.followup.send(file=file)
+        await interaction.followup.send(content=f"**{member.display_name}** went down the Plinko board!", file=file)
         
     except Exception as e:
         await interaction.followup.send(f"Sorry, couldn't create the Plinko simulation: {str(e)}")
