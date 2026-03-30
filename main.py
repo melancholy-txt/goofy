@@ -96,7 +96,7 @@ async def patpat(interaction: discord.Interaction, member: discord.Member):
         gif_width, gif_height = patpat_gif.size
         
         # Resize avatar to be bigger (about 2/3 of gif width)
-        avatar_size = (int(gif_width * 0.65), int(gif_width * 0.65))  # Make avatar bigger
+        avatar_size = (int(gif_width * 0.5), int(gif_width * 0.5))  # Make avatar bigger
         avatar_img = avatar_img.resize(avatar_size, Image.Resampling.LANCZOS)
         
         # Create circular mask for avatar
