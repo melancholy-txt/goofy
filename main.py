@@ -301,7 +301,7 @@ async def plinko(interaction: discord.Interaction, member: discord.Member):
         for adj_x in [-1, 0, 1]:
             for adj_y in [-1, 0, 1]:
                 text_draw.text((2 + adj_x, 2 + adj_y), meme_text, font=font, fill=outline_color)
-        text_draw.text((2, 2), meme_text, font=font, fill=(255, 153, 0, 255))
+        text_draw.text((2, 2), meme_text, font=font, fill=(255, 0, 0, 255))
         
         # 3. Magnify the tiny canvas! 
         # Scale multiplier: 3 means 300% bigger. 
