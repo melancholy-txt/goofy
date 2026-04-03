@@ -226,10 +226,27 @@ async def plinko(interaction: discord.Interaction, member: discord.Member):
         space = pymunk.Space()
         space.gravity = (0, 900)
 
+        # --- DETERMINE DIMENSIONS BASED ON TEXT ---
+        font = ImageFont.load_default()
+        display_name = member.display_name.lower()
+        
+        width = 400
+        peg_offset_adjustment = 0
+        
+        # Split into two rows if name is longer than 12 characters
+        if len(display_name) > 12:
+            lines = [display_name, "plinko"]
+            # Larger dimensions for two-row text
+            # width = 480
+            height = 510
+            peg_offset_adjustment = 20  # Push pegs down by the extra height
+        else:
+            lines = [f"{display_name} plinko"]
+            # Original dimensions for single-row text
+            height = 460
+
         # 3. Create the Plinko Pegs
         pegs = []
-        width = 400
-        height = 460
         spacing = 70
         peg_radius = 14
         
@@ -242,7 +259,7 @@ async def plinko(interaction: discord.Interaction, member: discord.Member):
             for col in range(count):
                 x = start_x + (col * spacing)
                 # Shifted all pegs down by 50 pixels to leave room for text
-                y = row * spacing + 150 
+                y = row * spacing + 150 + peg_offset_adjustment
                 
                 body = pymunk.Body(body_type=pymunk.Body.STATIC)
                 body.position = (x, y)
@@ -258,7 +275,7 @@ async def plinko(interaction: discord.Interaction, member: discord.Member):
         
         start_x = (width // 2) + random.uniform(-20, 20)
         # Shifted the ball's start position down by 50 pixels
-        ball_body.position = (start_x, 30) 
+        ball_body.position = (start_x, 30 + peg_offset_adjustment) 
         
         ball_shape = pymunk.Circle(ball_body, ball_radius)
         ball_shape.elasticity = 0.8
@@ -276,26 +293,49 @@ async def plinko(interaction: discord.Interaction, member: discord.Member):
             )
 
         # --- THE RETRO UPSCALE TEXT TRICK ---
-        font = ImageFont.load_default()
-        meme_text = f"{member.display_name.lower()} plinko"
         
+        # Calculate bounding box for all lines
+        line_heights = []
         try:
-            bbox = bg_draw.textbbox((0, 0), meme_text, font=font)
-            tiny_w = bbox[2] - bbox[0]
-            tiny_h = bbox[3] - bbox[1]
+            max_width = 0
+            for line in lines:
+                bbox = bg_draw.textbbox((0, 0), line, font=font)
+                line_width = bbox[2] - bbox[0]
+                line_height = bbox[3] - bbox[1]
+                line_heights.append(line_height)
+                max_width = max(max_width, line_width)
+            tiny_w = max_width
+            tiny_h = sum(line_heights) + (len(lines) - 1) * 2  # 2px spacing between lines
         except AttributeError:
-            tiny_w, tiny_h = bg_draw.textsize(meme_text, font=font) 
+            # Fallback for older PIL versions
+            max_width = 0
+            for line in lines:
+                line_w, line_h = bg_draw.textsize(line, font=font)
+                line_heights.append(line_h)
+                max_width = max(max_width, line_w)
+            tiny_w = max_width
+            tiny_h = sum(line_heights) + (len(lines) - 1) * 2
             
-        text_canvas = Image.new('RGBA', (tiny_w + 4, tiny_h + 4), (0, 0, 0, 0))
+        text_canvas = Image.new('RGBA', (tiny_w + 4, tiny_h + 6), (0, 0, 0, 0))
         text_draw = ImageDraw.Draw(text_canvas)
         
         outline_color = (0, 0, 0, 255)
-        for adj_x in [-1, 0, 1]:
-            for adj_y in [-1, 0, 1]:
-                text_draw.text((2 + adj_x, 2 + adj_y), meme_text, font=font, fill=outline_color)
-                
-        # Pure Red Text
-        text_draw.text((2, 2), meme_text, font=font, fill=(255, 0, 0, 255))
+        y_offset = 2
+        for i, line in enumerate(lines):
+            # Center each line horizontally within the canvas
+            try:
+                line_bbox = text_draw.textbbox((0, 0), line, font=font)
+                line_w = line_bbox[2] - line_bbox[0]
+            except AttributeError:
+                line_w, _ = text_draw.textsize(line, font=font)
+            x_offset = (tiny_w + 4 - line_w) // 2
+            
+            for adj_x in [-1, 0, 1]:
+                for adj_y in [-1, 0, 1]:
+                    text_draw.text((x_offset + adj_x, y_offset + adj_y), line, font=font, fill=outline_color)
+            # Pure Red Text
+            text_draw.text((x_offset, y_offset), line, font=font, fill=(255, 0, 0, 255))
+            y_offset += line_heights[i] + 2  # Add line height + spacing
         
         scale_multiplier = 4
         big_text_w = (tiny_w + 4) * scale_multiplier
