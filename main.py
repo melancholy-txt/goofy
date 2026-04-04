@@ -423,7 +423,9 @@ async def pinball(interaction: discord.Interaction, member: discord.Member):
         mass = 1
         inertia = pymunk.moment_for_circle(mass, 0, ball_radius, (0, 0))
         ball_body = pymunk.Body(mass, inertia)
-        ball_body.position = (width // 2, 50)
+        random_x = random.randint(80, width - 80)
+        ball_body.position = (random_x, 50)
+        ball_body.velocity = (random.uniform(-100, 100), random.uniform(-300, -100))
         
         ball_shape = pymunk.Circle(ball_body, ball_radius)
         ball_shape.elasticity = 0.7
@@ -463,12 +465,16 @@ async def pinball(interaction: discord.Interaction, member: discord.Member):
         # 5. Create Bumpers
         bumpers = []
         bumper_radius = 25
-        bumper_positions = [
+        base_positions = [
             (120, 220),
             (280, 220),
             (200, 300),
             (120, 380),
             (280, 380),
+        ]
+        bumper_positions = [
+            (x + random.randint(-20, 20), y + random.randint(-15, 15))
+            for x, y in base_positions
         ]
         
         bumper_hit_frames = {}  # Track when bumpers are hit for visual feedback
@@ -478,7 +484,7 @@ async def pinball(interaction: discord.Interaction, member: discord.Member):
             bumper_body = pymunk.Body(body_type=pymunk.Body.STATIC)
             bumper_body.position = (bx, by)
             bumper_shape = pymunk.Circle(bumper_body, bumper_radius)
-            bumper_shape.elasticity = 1.5
+            bumper_shape.elasticity = random.uniform(1.3, 1.7)
             space.add(bumper_body, bumper_shape)
             bumpers.append((bx, by, i))
             bumper_hit_frames[i] = -999  # No recent hits
@@ -617,7 +623,7 @@ async def pinball(interaction: discord.Interaction, member: discord.Member):
                 name_bbox = frame_draw.textbbox((0, 0), name_text, font=font)
                 score_bbox = frame_draw.textbbox((0, 0), score_text, font=font)
                 text_w = max(name_bbox[2] - name_bbox[0], score_bbox[2] - score_bbox[0])
-                text_h = (name_bbox[3] - name_bbox[1]) + (score_bbox[3] - score_bbox[1]) + 2
+                text_h = (name_bbox[3] - name_bbox[1]) + (score_bbox[3] - score_bbox[1]) + 12
             except AttributeError:
                 name_w, name_h = frame_draw.textsize(name_text, font=font)
                 score_w, score_h = frame_draw.textsize(score_text, font=font)
@@ -628,13 +634,15 @@ async def pinball(interaction: discord.Interaction, member: discord.Member):
             text_draw = ImageDraw.Draw(text_canvas)
             
             # Draw with outline
+            name_height = name_bbox[3] - name_bbox[1]
+            score_y = name_height + 8
             for adj_x in [-1, 0, 1]:
                 for adj_y in [-1, 0, 1]:
                     text_draw.text((2 + adj_x, 2 + adj_y), name_text, font=font, fill=(0, 0, 0, 255))
-                    text_draw.text((2 + adj_x, text_h // 2 + adj_y), score_text, font=font, fill=(0, 0, 0, 255))
+                    text_draw.text((2 + adj_x, score_y + 2 + adj_y), score_text, font=font, fill=(0, 0, 0, 255))
             
             text_draw.text((2, 2), name_text, font=font, fill=(255, 215, 0, 255))  # Gold
-            text_draw.text((2, text_h // 2), score_text, font=font, fill=(255, 255, 255, 255))  # White
+            text_draw.text((2, score_y + 2), score_text, font=font, fill=(255, 255, 255, 255))  # White
             
             # Upscale text
             big_text = text_canvas.resize((text_w * 3, text_h * 3), resample=Image.Resampling.NEAREST)
