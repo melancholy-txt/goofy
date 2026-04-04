@@ -490,13 +490,13 @@ async def pinball(interaction: discord.Interaction, member: discord.Member):
             bumper_hit_frames[i] = -999  # No recent hits
         
         # 6. Create Flippers
-        flipper_width = 60
+        flipper_width = 90
         flipper_height = 8
         flipper_y = height - 80
         
         # Left flipper
         left_flipper_body = pymunk.Body(body_type=pymunk.Body.KINEMATIC)
-        left_flipper_pivot = (120, flipper_y)
+        left_flipper_pivot = (50, flipper_y)
         left_flipper_body.position = left_flipper_pivot
         left_flipper_shape = pymunk.Segment(left_flipper_body, (0, 0), (flipper_width, 0), flipper_height)
         left_flipper_shape.elasticity = 0.95
@@ -504,7 +504,7 @@ async def pinball(interaction: discord.Interaction, member: discord.Member):
         
         # Right flipper
         right_flipper_body = pymunk.Body(body_type=pymunk.Body.KINEMATIC)
-        right_flipper_pivot = (280, flipper_y)
+        right_flipper_pivot = (350, flipper_y)
         right_flipper_body.position = right_flipper_pivot
         right_flipper_shape = pymunk.Segment(right_flipper_body, (0, 0), (-flipper_width, 0), flipper_height)
         right_flipper_shape.elasticity = 0.95
@@ -542,8 +542,8 @@ async def pinball(interaction: discord.Interaction, member: discord.Member):
                     dx = ball_pos.x - bx
                     dy = ball_pos.y - by
                     distance_safe = max(distance, 0.1)  # Avoid division by zero
-                    impulse_x = (dx / distance_safe) * 800
-                    impulse_y = (dy / distance_safe) * 800
+                    impulse_x = (dx / distance_safe) * 400
+                    impulse_y = (dy / distance_safe) * 400
                     ball_body.apply_impulse_at_world_point((impulse_x, impulse_y), ball_body.position)
             
             # Update flipper animation
