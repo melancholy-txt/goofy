@@ -1,4 +1,5 @@
 import discord
+from discord import app_commands
 from discord.ext import commands
 import os
 from dotenv import load_dotenv
@@ -50,11 +51,19 @@ async def on_ready():
 
 # Get a member's profile picture
 @bot.tree.command(name="avatar", description="Get a member's profile picture")
-async def avatar(interaction: discord.Interaction, member: discord.Member):
+@app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
+@app_commands.allowed_installs(guilds=True, users=True)
+async def avatar(
+    interaction: discord.Interaction,
+    member: discord.User | discord.Member | None = None,
+):
+    member = member or interaction.user
+
     # Create an embed to make it look nice
+    embed_color = member.color if isinstance(member, discord.Member) else discord.Color.blue()
     embed = discord.Embed(
         title=f"{member.display_name}'s Avatar",
-        color=member.color or discord.Color.blue()
+        color=embed_color
     )
     
     # Get the avatar URL (falls back to default if no custom avatar)
@@ -75,7 +84,13 @@ async def avatar(interaction: discord.Interaction, member: discord.Member):
 
 # Patpat command - overlays patting animation on avatar
 @bot.tree.command(name="patpat", description="Pat someone's avatar!")
-async def patpat(interaction: discord.Interaction, member: discord.Member):
+@app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
+@app_commands.allowed_installs(guilds=True, users=True)
+async def patpat(
+    interaction: discord.Interaction,
+    member: discord.User | discord.Member | None = None,
+):
+    member = member or interaction.user
     await interaction.response.defer()  # Give us more time for image processing
     
     try:
@@ -204,7 +219,13 @@ async def patpat(interaction: discord.Interaction, member: discord.Member):
         await interaction.followup.send(f"Sorry, couldn't create patpat image: {str(e)}")
 
 @bot.tree.command(name="plinko", description="Drop someone's avatar down a Plinko board!")
-async def plinko(interaction: discord.Interaction, member: discord.Member):
+@app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
+@app_commands.allowed_installs(guilds=True, users=True)
+async def plinko(
+    interaction: discord.Interaction,
+    member: discord.User | discord.Member | None = None,
+):
+    member = member or interaction.user
     await interaction.response.defer()
     
     try:
@@ -394,7 +415,13 @@ async def plinko(interaction: discord.Interaction, member: discord.Member):
         await interaction.followup.send(f"Sorry, couldn't create the Plinko simulation: {str(e)}")
 
 @bot.tree.command(name="pinball", description="Play pinball with someone's avatar!")
-async def pinball(interaction: discord.Interaction, member: discord.Member):
+@app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
+@app_commands.allowed_installs(guilds=True, users=True)
+async def pinball(
+    interaction: discord.Interaction,
+    member: discord.User | discord.Member | None = None,
+):
+    member = member or interaction.user
     await interaction.response.defer()
     
     try:
