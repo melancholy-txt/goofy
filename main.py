@@ -393,6 +393,275 @@ async def plinko(interaction: discord.Interaction, member: discord.Member):
     except Exception as e:
         await interaction.followup.send(f"Sorry, couldn't create the Plinko simulation: {str(e)}")
 
+@bot.tree.command(name="pinball", description="Play pinball with someone's avatar!")
+async def pinball(interaction: discord.Interaction, member: discord.Member):
+    await interaction.response.defer()
+    
+    try:
+        # 1. Fetch and prepare the avatar
+        avatar_url = member.display_avatar.with_size(128).url
+        response = requests.get(avatar_url)
+        avatar_img = Image.open(io.BytesIO(response.content)).convert("RGBA")
+        
+        ball_radius = 15
+        img_size = (ball_radius * 2, ball_radius * 2)
+        avatar_img = avatar_img.resize(img_size, Image.Resampling.LANCZOS)
+        
+        mask = Image.new('L', img_size, 0)
+        draw = ImageDraw.Draw(mask)
+        draw.ellipse((0, 0) + img_size, fill=255)
+        avatar_img.putalpha(mask)
+
+        # 2. Setup the Physics Space
+        space = pymunk.Space()
+        space.gravity = (0, 1200)
+        
+        width = 400
+        height = 600
+        
+        # 3. Create the Falling Ball
+        mass = 1
+        inertia = pymunk.moment_for_circle(mass, 0, ball_radius, (0, 0))
+        ball_body = pymunk.Body(mass, inertia)
+        ball_body.position = (width // 2, 50)
+        
+        ball_shape = pymunk.Circle(ball_body, ball_radius)
+        ball_shape.elasticity = 0.7
+        ball_shape.friction = 0.3
+        space.add(ball_body, ball_shape)
+        
+        # 4. Create Table Boundaries (walls)
+        wall_thickness = 10
+        walls = []
+        
+        # Left wall
+        left_wall = pymunk.Segment(space.static_body, (wall_thickness, 0), (wall_thickness, height), wall_thickness)
+        left_wall.elasticity = 0.8
+        walls.append(left_wall)
+        
+        # Right wall
+        right_wall = pymunk.Segment(space.static_body, (width - wall_thickness, 0), (width - wall_thickness, height), wall_thickness)
+        right_wall.elasticity = 0.8
+        walls.append(right_wall)
+        
+        # Top wall
+        top_wall = pymunk.Segment(space.static_body, (0, wall_thickness), (width, wall_thickness), wall_thickness)
+        top_wall.elasticity = 0.8
+        walls.append(top_wall)
+        
+        # Angled lane guides at top
+        left_guide = pymunk.Segment(space.static_body, (wall_thickness, 80), (80, 150), 5)
+        left_guide.elasticity = 0.9
+        walls.append(left_guide)
+        
+        right_guide = pymunk.Segment(space.static_body, (width - wall_thickness, 80), (width - 80, 150), 5)
+        right_guide.elasticity = 0.9
+        walls.append(right_guide)
+        
+        space.add(*walls)
+        
+        # 5. Create Bumpers
+        bumpers = []
+        bumper_radius = 25
+        bumper_positions = [
+            (120, 220),
+            (280, 220),
+            (200, 300),
+            (120, 380),
+            (280, 380),
+        ]
+        
+        bumper_hit_frames = {}  # Track when bumpers are hit for visual feedback
+        score = 0
+        
+        for i, (bx, by) in enumerate(bumper_positions):
+            bumper_body = pymunk.Body(body_type=pymunk.Body.STATIC)
+            bumper_body.position = (bx, by)
+            bumper_shape = pymunk.Circle(bumper_body, bumper_radius)
+            bumper_shape.elasticity = 1.5
+            bumper_shape.collision_type = i + 1  # Unique collision type per bumper
+            space.add(bumper_body, bumper_shape)
+            bumpers.append((bx, by, i))
+            bumper_hit_frames[i] = -999  # No recent hits
+        
+        # 6. Create Flippers
+        flipper_width = 60
+        flipper_height = 8
+        flipper_y = height - 80
+        
+        # Left flipper
+        left_flipper_body = pymunk.Body(body_type=pymunk.Body.KINEMATIC)
+        left_flipper_pivot = (120, flipper_y)
+        left_flipper_body.position = left_flipper_pivot
+        left_flipper_shape = pymunk.Segment(left_flipper_body, (0, 0), (flipper_width, 0), flipper_height)
+        left_flipper_shape.elasticity = 0.95
+        space.add(left_flipper_body, left_flipper_shape)
+        
+        # Right flipper
+        right_flipper_body = pymunk.Body(body_type=pymunk.Body.KINEMATIC)
+        right_flipper_pivot = (280, flipper_y)
+        right_flipper_body.position = right_flipper_pivot
+        right_flipper_shape = pymunk.Segment(right_flipper_body, (0, 0), (-flipper_width, 0), flipper_height)
+        right_flipper_shape.elasticity = 0.95
+        space.add(right_flipper_body, right_flipper_shape)
+        
+        # Flipper animation state
+        flipper_state = "down"  # "down" or "up"
+        flipper_frame_count = 0
+        flipper_cooldown = 0
+        
+        # 7. Collision handler for scoring
+        def bumper_hit_handler(arbiter, space, data):
+            nonlocal score
+            collision_type = arbiter.shapes[1].collision_type
+            if collision_type > 0:
+                bumper_idx = collision_type - 1
+                bumper_hit_frames[bumper_idx] = frame_counter
+                score += 100
+                # Apply impulse to ball
+                ball_shape = arbiter.shapes[0]
+                impulse_direction = (ball_body.position - bumpers[bumper_idx][:2]).normalized()
+                ball_body.apply_impulse_at_world_point(impulse_direction * 800, ball_body.position)
+            return True
+        
+        for i in range(len(bumpers)):
+            handler = space.add_collision_handler(0, i + 1)
+            handler.begin = bumper_hit_handler
+        
+        # 8. Prepare text rendering
+        font = ImageFont.load_default()
+        display_name = member.display_name
+        
+        # 9. Run the Simulation and Record Frames
+        frames = []
+        fps = 30
+        dt = 1.0 / fps
+        total_frames = 180
+        frame_counter = 0
+        
+        for frame_counter in range(total_frames):
+            # Update flipper animation
+            if flipper_cooldown <= 0:
+                # Check if ball is near flippers
+                ball_y = ball_body.position.y
+                if ball_y > flipper_y - 100 and ball_body.velocity.y > 0:
+                    flipper_state = "up"
+                    flipper_cooldown = 20  # Hold up for 20 frames
+                    
+            if flipper_cooldown > 0:
+                flipper_cooldown -= 1
+                if flipper_cooldown == 0:
+                    flipper_state = "down"
+            
+            # Animate flippers
+            if flipper_state == "up":
+                left_flipper_body.angle = math.radians(45)
+                right_flipper_body.angle = math.radians(-45)
+            else:
+                left_flipper_body.angle = 0
+                right_flipper_body.angle = 0
+            
+            space.step(dt)
+            
+            # Create frame
+            frame = Image.new('RGBA', (width, height), (35, 39, 42, 255))
+            frame_draw = ImageDraw.Draw(frame)
+            
+            # Draw walls
+            frame_draw.rectangle([0, 0, wall_thickness * 2, height], fill=(100, 100, 100, 255))
+            frame_draw.rectangle([width - wall_thickness * 2, 0, width, height], fill=(100, 100, 100, 255))
+            frame_draw.rectangle([0, 0, width, wall_thickness * 2], fill=(100, 100, 100, 255))
+            
+            # Draw lane guides
+            frame_draw.line([(wall_thickness, 80), (80, 150)], fill=(120, 120, 120, 255), width=8)
+            frame_draw.line([(width - wall_thickness, 80), (width - 80, 150)], fill=(120, 120, 120, 255), width=8)
+            
+            # Draw bumpers
+            for bx, by, idx in bumpers:
+                frames_since_hit = frame_counter - bumper_hit_frames[idx]
+                if frames_since_hit < 5:  # Flash for 5 frames
+                    color = (255, 255, 0, 255)  # Yellow flash
+                else:
+                    color = (255, 100, 100, 255)  # Red bumpers
+                frame_draw.ellipse(
+                    [bx - bumper_radius, by - bumper_radius, bx + bumper_radius, by + bumper_radius],
+                    fill=color
+                )
+            
+            # Draw flippers
+            def draw_flipper(body, pivot, length, is_left):
+                angle = body.angle
+                end_x = pivot[0] + length * math.cos(angle) * (1 if is_left else -1)
+                end_y = pivot[1] + length * math.sin(angle) * (1 if is_left else -1)
+                frame_draw.line([pivot, (end_x, end_y)], fill=(100, 150, 255, 255), width=flipper_height * 2)
+                
+            draw_flipper(left_flipper_body, left_flipper_pivot, flipper_width, True)
+            draw_flipper(right_flipper_body, right_flipper_pivot, flipper_width, False)
+            
+            # Draw ball (avatar)
+            bx, by = int(ball_body.position.x), int(ball_body.position.y)
+            paste_x = bx - ball_radius
+            paste_y = by - ball_radius
+            
+            if 0 < paste_y < height:
+                angle_deg = math.degrees(-ball_body.angle)
+                rotated_avatar = avatar_img.rotate(angle_deg, resample=Image.Resampling.BICUBIC)
+                frame.paste(rotated_avatar, (paste_x, paste_y), mask=rotated_avatar)
+            
+            # Draw score display (retro style)
+            score_text = f"SCORE: {score}"
+            name_text = display_name.upper()
+            
+            # Create text on small canvas then upscale
+            try:
+                name_bbox = frame_draw.textbbox((0, 0), name_text, font=font)
+                score_bbox = frame_draw.textbbox((0, 0), score_text, font=font)
+                text_w = max(name_bbox[2] - name_bbox[0], score_bbox[2] - score_bbox[0])
+                text_h = (name_bbox[3] - name_bbox[1]) + (score_bbox[3] - score_bbox[1]) + 2
+            except AttributeError:
+                name_w, name_h = frame_draw.textsize(name_text, font=font)
+                score_w, score_h = frame_draw.textsize(score_text, font=font)
+                text_w = max(name_w, score_w)
+                text_h = name_h + score_h + 2
+            
+            text_canvas = Image.new('RGBA', (text_w + 4, text_h + 4), (0, 0, 0, 0))
+            text_draw = ImageDraw.Draw(text_canvas)
+            
+            # Draw with outline
+            for adj_x in [-1, 0, 1]:
+                for adj_y in [-1, 0, 1]:
+                    text_draw.text((2 + adj_x, 2 + adj_y), name_text, font=font, fill=(0, 0, 0, 255))
+                    text_draw.text((2 + adj_x, text_h // 2 + adj_y), score_text, font=font, fill=(0, 0, 0, 255))
+            
+            text_draw.text((2, 2), name_text, font=font, fill=(255, 215, 0, 255))  # Gold
+            text_draw.text((2, text_h // 2), score_text, font=font, fill=(255, 255, 255, 255))  # White
+            
+            # Upscale text
+            big_text = text_canvas.resize((text_w * 3, text_h * 3), resample=Image.Resampling.NEAREST)
+            text_x = (width - text_w * 3) // 2
+            frame.paste(big_text, (text_x, 10), mask=big_text)
+            
+            frames.append(frame)
+        
+        # 10. Save and Send the GIF
+        output = io.BytesIO()
+        frames[0].save(
+            output,
+            format='GIF',
+            save_all=True,
+            append_images=frames[1:],
+            duration=int(1000/fps),
+            loop=0,
+            disposal=2
+        )
+        output.seek(0)
+        
+        file = discord.File(output, filename="pinball.gif")
+        await interaction.followup.send(f"🎯 Final Score: **{score}** points!", file=file)
+        
+    except Exception as e:
+        await interaction.followup.send(f"Sorry, couldn't create the pinball simulation: {str(e)}")
+
 if __name__ == "__main__":
     token = os.getenv('DISCORD_TOKEN')
     if not token:
