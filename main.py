@@ -479,7 +479,6 @@ async def pinball(interaction: discord.Interaction, member: discord.Member):
             bumper_body.position = (bx, by)
             bumper_shape = pymunk.Circle(bumper_body, bumper_radius)
             bumper_shape.elasticity = 1.5
-            bumper_shape.collision_type = i + 1  # Unique collision type per bumper
             space.add(bumper_body, bumper_shape)
             bumpers.append((bx, by, i))
             bumper_hit_frames[i] = -999  # No recent hits
@@ -510,24 +509,6 @@ async def pinball(interaction: discord.Interaction, member: discord.Member):
         flipper_frame_count = 0
         flipper_cooldown = 0
         
-        # 7. Collision handler for scoring
-        def bumper_hit_handler(arbiter, space, data):
-            nonlocal score
-            collision_type = arbiter.shapes[1].collision_type
-            if collision_type > 0:
-                bumper_idx = collision_type - 1
-                bumper_hit_frames[bumper_idx] = frame_counter
-                score += 100
-                # Apply impulse to ball
-                ball_shape = arbiter.shapes[0]
-                impulse_direction = (ball_body.position - bumpers[bumper_idx][:2]).normalized()
-                ball_body.apply_impulse_at_world_point(impulse_direction * 800, ball_body.position)
-            return True
-        
-        for i in range(len(bumpers)):
-            handler = space.add_collision_handler(0, i + 1)
-            handler.begin = bumper_hit_handler
-        
         # 8. Prepare text rendering
         font = ImageFont.load_default()
         display_name = member.display_name
@@ -540,6 +521,25 @@ async def pinball(interaction: discord.Interaction, member: discord.Member):
         frame_counter = 0
         
         for frame_counter in range(total_frames):
+            # Check for bumper collisions (distance-based detection)
+            ball_pos = ball_body.position
+            for bx, by, idx in bumpers:
+                distance = math.sqrt((ball_pos.x - bx)**2 + (ball_pos.y - by)**2)
+                collision_threshold = ball_radius + bumper_radius
+                
+                # Check if ball is colliding with bumper and hasn't scored recently
+                if distance < collision_threshold and frame_counter - bumper_hit_frames[idx] > 5:
+                    bumper_hit_frames[idx] = frame_counter
+                    score += 100
+                    
+                    # Apply impulse away from bumper
+                    dx = ball_pos.x - bx
+                    dy = ball_pos.y - by
+                    distance_safe = max(distance, 0.1)  # Avoid division by zero
+                    impulse_x = (dx / distance_safe) * 800
+                    impulse_y = (dy / distance_safe) * 800
+                    ball_body.apply_impulse_at_world_point((impulse_x, impulse_y), ball_body.position)
+            
             # Update flipper animation
             if flipper_cooldown <= 0:
                 # Check if ball is near flippers
