@@ -5,9 +5,9 @@ services:
     environment:
       - DISCORD_TOKEN=${DISCORD_TOKEN}
     restart: unless-stopped
-    # If you need to mount the patpat.gif file
     volumes:
-      - ./patpat.gif:/app/patpat.gif:ro
+      - .:/app
+      - /app/.venv
     # Resource limits (optional)
     deploy:
       resources:

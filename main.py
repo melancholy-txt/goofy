@@ -14,6 +14,7 @@ bot = commands.Bot(command_prefix="$#!", intents=intents)
 async def load_extensions():
     await bot.load_extension("cogs.general")
     await bot.load_extension("cogs.games")
+    await bot.load_extension("cogs.reactions")
 
 @bot.event
 async def on_ready():
@@ -36,6 +37,23 @@ async def sync(ctx):
 
 @sync.error
 async def sync_error(ctx, error):
+    if isinstance(error, commands.NotOwner):
+        await ctx.send("Error: You are not recognized as the bot owner!")
+    else:
+        await ctx.send(f"An error occurred: {error}")
+
+@bot.command(name="reload")
+@commands.is_owner()
+async def reload(ctx, cog_name: str):
+    await ctx.send(f"Reloading `cogs.{cog_name}`...")
+    try:
+        await bot.reload_extension(f"cogs.{cog_name}")
+        await ctx.send(f"Successfully reloaded `cogs.{cog_name}`!")
+    except Exception as e:
+        await ctx.send(f"Failed to reload cog: {e}")
+
+@reload.error
+async def reload_error(ctx, error):
     if isinstance(error, commands.NotOwner):
         await ctx.send("Error: You are not recognized as the bot owner!")
     else:
